@@ -1,0 +1,27 @@
+ekf_filter_node:
+  ros__parameters:
+    frequency: 50.0
+    two_d_mode: true
+    publish_tf: true
+    publish_acceleration: false
+
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+
+    # 휠 오도메트리: 위치(x, y) + yaw
+    odom0: /odom
+    odom0_config: [true,  true,  false,
+                   false, false, true,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false]
+
+    # AHRS IMU: 자세(roll, pitch, yaw) + 각속도 + 가속도
+    imu0: /imu/data
+    imu0_config: [false, false, false,
+                  true,  true,  true,
+                  false, false, false,
+                  true,  true,  true,
+                  true,  true,  true]
+    imu0_remove_gravitational_acceleration: true
