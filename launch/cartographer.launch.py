@@ -1,10 +1,11 @@
 """
-Cartographer SLAM launch for Sendbooster AGV (Real Robot)
+Cartographer SLAM launch for Sendbooster AGV
+
+Jetson에서 bringup 실행 후, PC에서 이 launch로 SLAM.
+(robot_state_publisher는 bringup에서 실행하므로 여기선 제외)
 
 Usage:
-  ros2 launch sendbooster_agv_bringup cartographer.launch.py                   # 2 LiDAR (default)
-  ros2 launch sendbooster_agv_bringup cartographer.launch.py num_lidars:=1     # 1 LiDAR (front only)
-  ros2 launch sendbooster_agv_bringup cartographer.launch.py use_rviz:=false   # without Rviz
+  ros2 launch sendbooster_agv_bringup cartographer.launch.py
 """
 
 import os
@@ -12,8 +13,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
@@ -21,18 +21,11 @@ def generate_launch_description():
     bringup_dir = get_package_share_directory('sendbooster_agv_bringup')
     config_dir = os.path.join(bringup_dir, 'config')
 
-    num_lidars = LaunchConfiguration('num_lidars')
-    use_rviz = LaunchConfiguration('use_rviz')
     resolution = LaunchConfiguration('resolution')
     publish_period_sec = LaunchConfiguration('publish_period_sec')
 
-    # Select lua config based on num_lidars
-    lua_1lidar = 'cartographer_1lidar.lua'
-    lua_2lidar = 'cartographer_2lidar.lua'
-
-    # Cartographer node: 1 LiDAR (front only)
-    cartographer_1lidar = Node(
-        condition=IfCondition(PythonExpression(["'", num_lidars, "' == '1'"])),
+    # Cartographer node: uses front LiDAR scan
+    cartographer_node = Node(
         package='cartographer_ros',
         executable='cartographer_node',
         name='cartographer_node',
@@ -40,28 +33,11 @@ def generate_launch_description():
         parameters=[{'use_sim_time': False}],
         arguments=[
             '-configuration_directory', config_dir,
-            '-configuration_basename', lua_1lidar,
+            '-configuration_basename', 'cartographer_1lidar.lua',
         ],
         remappings=[
-            ('scan', 'scan'),
-        ],
-    )
-
-    # Cartographer node: 2 LiDAR (front + back)
-    cartographer_2lidar = Node(
-        condition=IfCondition(PythonExpression(["'", num_lidars, "' != '1'"])),
-        package='cartographer_ros',
-        executable='cartographer_node',
-        name='cartographer_node',
-        output='screen',
-        parameters=[{'use_sim_time': False}],
-        arguments=[
-            '-configuration_directory', config_dir,
-            '-configuration_basename', lua_2lidar,
-        ],
-        remappings=[
-            ('scan', 'scan'),
-            ('scan_2', 'scan2'),
+            ('scan', 'scan_raw_front'),  # 전방 LiDAR만 사용 (뒤에서 조종하는 사람 방지)
+            ('odom', 'odometry/filtered'),
         ],
     )
 
@@ -78,25 +54,10 @@ def generate_launch_description():
         ],
     )
 
-    # Rviz
-    rviz_node = Node(
-        condition=IfCondition(use_rviz),
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        output='screen',
-        parameters=[{'use_sim_time': False}],
-    )
-
     return LaunchDescription([
-        DeclareLaunchArgument('num_lidars', default_value='2',
-                              description='Number of LiDARs (1 or 2)'),
-        DeclareLaunchArgument('use_rviz', default_value='true'),
         DeclareLaunchArgument('resolution', default_value='0.05'),
         DeclareLaunchArgument('publish_period_sec', default_value='1.0'),
 
-        cartographer_1lidar,
-        cartographer_2lidar,
+        cartographer_node,
         occupancy_grid_node,
-        rviz_node,
     ])

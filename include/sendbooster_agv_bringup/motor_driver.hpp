@@ -289,6 +289,8 @@ public:
     uint32_t getTxCount() const { return tx_count_; }
     uint32_t getRxCount() const { return rx_count_; }
     uint32_t getErrorCount() const { return error_count_; }
+    uint32_t getChecksumOkCount() const { return checksum_ok_count_; }
+    uint32_t getChecksumErrCount() const { return checksum_err_count_; }
 
     // Getters for parameters
     int getGearRatio() const { return gear_ratio_; }
@@ -404,8 +406,11 @@ private:
     MotorState motor_left_;
     MotorState motor_right_;
 
-    // Receive buffer and state machine
+    // Receive buffers (pre-allocated, no heap alloc per read)
     uint8_t recv_buf_[MAX_PACKET_SIZE];
+    uint8_t read_buf_[256];   // Serial read buffer
+    uint8_t accum_buf_[512];  // Accumulation buffer for partial packets
+    size_t accum_len_ = 0;    // Current accumulated data length
     size_t packet_num_;
     uint8_t step_;
     uint8_t chk_sum_;
@@ -423,6 +428,8 @@ private:
     std::atomic<uint32_t> tx_count_;
     std::atomic<uint32_t> rx_count_;
     std::atomic<uint32_t> error_count_;
+    std::atomic<uint32_t> checksum_ok_count_{0};
+    std::atomic<uint32_t> checksum_err_count_{0};
 
     // Reconnection
     int reconnect_attempts_;
