@@ -1,0 +1,201 @@
+# Docker Compose for Sendbooster AGV Simulation
+#
+# Architecture:
+#   gazebo service  — Gazebo simulator (no resource limits)
+#   nav service     — scan_processor + EKF + Nav2 (Jetson Orin Nano constraints)
+#
+# Profiles:
+#   (default)     — Normal simulation (warehouse, standard noise)
+#   stress        — Stress test (factory maze, high noise, sensor delays)
+#   viz           — RViz viewer
+#
+# Usage:
+#   1. Build workspace on host: cd ~/ros2_ws && colcon build
+#   2. Build Docker image:      docker compose build
+#   3. Allow X11 access:        xhost +local:docker
+#
+#   # Normal simulation:
+#   docker compose up
+#
+#   # Stress test (harsh environment):
+#   docker compose --profile stress up
+#
+#   # With RViz:
+#   docker compose --profile viz up
+#
+#   # Monitor nav stack performance:
+#   docker stats sendbooster-nav
+
+services:
+
+  # ── Gazebo Simulator (unrestricted) ──
+  # Publishes: /scan_raw_front, /scan_raw_back, /odom, /imu/data, /tf, /clock
+  gazebo:
+    image: sendbooster-sim
+    build: .
+    container_name: sendbooster-gazebo
+    network_mode: host
+    ipc: host
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - GAZEBO_MODEL_PATH=/usr/share/gazebo-11/models
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/ros2_ws:${HOME}/ros2_ws:ro
+    command: >
+      bash -c "source /home/seongmin/ros2_ws/install/setup.bash &&
+      ros2 launch sendbooster_agv_bringup simulation.launch.py
+      gazebo:=true nav:=false headless:=true
+      world:=${WORLD_FILE:-/home/seongmin/ros2_ws/src/sendbooster_agv_bringup/worlds/warehouse.world}"
+
+  # ── Nav Stack (Jetson Orin Nano constraints) ──
+  # Jetson Orin Nano 8GB: 6x ARM A78AE ≈ 3 x86 cores, 7GB usable RAM
+  nav:
+    image: sendbooster-sim
+    container_name: sendbooster-nav
+    network_mode: host
+    ipc: host
+    cpus: 3.0
+    mem_limit: 7g
+    memswap_limit: 7g
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+    volumes:
+      - ${HOME}/ros2_ws:${HOME}/ros2_ws:ro
+    command: >
+      bash -c "source /home/seongmin/ros2_ws/install/setup.bash &&
+      MAP_ARG=''; [ -n '${MAP_FILE:-}' ] && MAP_ARG=\"map:=${MAP_FILE}\";
+      ros2 launch sendbooster_agv_bringup simulation.launch.py
+      gazebo:=false nav:=true
+      localization:=${NAV_MODE:-odom} $MAP_ARG"
+    depends_on:
+      - gazebo
+
+  # ── Stress Test Gazebo (factory maze, high noise) ──
+  gazebo-stress:
+    image: sendbooster-sim
+    container_name: sendbooster-gazebo-stress
+    network_mode: host
+    ipc: host
+    profiles: ["stress"]
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - GAZEBO_MODEL_PATH=/usr/share/gazebo-11/models
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/ros2_ws:${HOME}/ros2_ws:ro
+    command: >
+      bash -c "source /home/seongmin/ros2_ws/install/setup.bash &&
+      ros2 launch sendbooster_agv_bringup stress_test.launch.py
+      gazebo:=true nav:=false headless:=true"
+
+  # ── Stress Test Nav (with delays, tight CPU) ──
+  nav-stress:
+    image: sendbooster-sim
+    container_name: sendbooster-nav-stress
+    network_mode: host
+    ipc: host
+    profiles: ["stress"]
+    cpus: 2.0
+    mem_limit: 6g
+    memswap_limit: 6g
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+    volumes:
+      - ${HOME}/ros2_ws:${HOME}/ros2_ws:ro
+    command: >
+      bash -c "source /home/seongmin/ros2_ws/install/setup.bash &&
+      ros2 launch sendbooster_agv_bringup stress_test.launch.py
+      gazebo:=false nav:=true
+      map:=/home/seongmin/ros2_ws/src/sendbooster_agv_bringup/map/warehouse_sim.yaml
+      odom_delay_ms:=30.0 imu_delay_ms:=15.0 scan_delay_ms:=50.0"
+    depends_on:
+      - gazebo-stress
+
+  # ── MPPI Tuner — Gazebo (unrestricted) ──
+  gazebo-mppi:
+    image: sendbooster-sim
+    container_name: sendbooster-gazebo-mppi
+    network_mode: host
+    ipc: host
+    profiles: ["mppi-tune"]
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - GAZEBO_MODEL_PATH=/usr/share/gazebo-11/models
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/ros2_ws:${HOME}/ros2_ws:ro
+    command: >
+      bash -c "source /home/seongmin/ros2_ws/install/setup.bash &&
+      ros2 launch sendbooster_agv_bringup simulation_mppi.launch.py
+      gazebo:=true nav:=false headless:=true"
+
+  # ── MPPI Nav — Jetson Orin Nano constraints ──
+  nav-mppi-jetson:
+    image: sendbooster-sim
+    container_name: sendbooster-nav-mppi-jetson
+    network_mode: host
+    ipc: host
+    profiles: ["mppi-tune"]
+    cpus: 3.0
+    mem_limit: 7g
+    memswap_limit: 7g
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+    volumes:
+      - ${HOME}/ros2_ws:${HOME}/ros2_ws:rw
+    command: >
+      bash -c "source /home/seongmin/ros2_ws/install/setup.bash &&
+      ros2 launch sendbooster_agv_bringup simulation_mppi.launch.py
+      gazebo:=false nav:=true localization:=amcl
+      params_file:=${PARAMS_FILE:-/home/seongmin/ros2_ws/src/sendbooster_agv_bringup/config/nav2_params_mppi_tuned.yaml}
+      map:=/home/seongmin/ros2_ws/src/sendbooster_agv_bringup/map/my_map.yaml"
+    depends_on:
+      - gazebo-mppi
+
+  # ── MPPI Waypoint Test Runner (Jetson constraints) ──
+  mppi-test:
+    image: sendbooster-sim
+    container_name: sendbooster-mppi-test
+    network_mode: host
+    ipc: host
+    profiles: ["mppi-tune"]
+    cpus: 3.0
+    mem_limit: 7g
+    memswap_limit: 7g
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+    volumes:
+      - ${HOME}/ros2_ws:${HOME}/ros2_ws:rw
+    command: >
+      bash -c "source /home/seongmin/ros2_ws/install/setup.bash &&
+      sleep 30 &&
+      ros2 run sendbooster_agv_bringup nav_goal_metrics_collector.py
+      --ros-args -p use_sim_time:=true -p quick:=false"
+    depends_on:
+      - nav-mppi-jetson
+
+  # ── RViz Viewer (optional) ──
+  rviz:
+    image: sendbooster-sim
+    container_name: sendbooster-rviz
+    network_mode: host
+    ipc: host
+    profiles: ["viz"]
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/ros2_ws:${HOME}/ros2_ws:ro
+    command: >
+      bash -c "source /home/seongmin/ros2_ws/install/setup.bash &&
+      ros2 run rviz2 rviz2
+      -d /home/seongmin/ros2_ws/src/sendbooster_agv_bringup/rviz/slam_view.rviz"

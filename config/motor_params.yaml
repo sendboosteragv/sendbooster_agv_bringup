@@ -1,11 +1,11 @@
 # Motor Driver Parameters for Sendbooster AGV
-# Modify these values according to your robot configuration
+# These defaults match bringup.launch.py (launch file overrides these)
 
 motor_driver_node:
   ros__parameters:
     # Serial communication
-    serial_port: "/dev/ttyUSB0"
-    baudrate: 57600
+    serial_port: "/dev/motor_driver"
+    baudrate: 19200
 
     # Motor driver IDs (MDROBOT protocol)
     mdui_id: 184      # PC ID
@@ -13,22 +13,31 @@ motor_driver_node:
     motor_id: 1       # Motor channel ID
 
     # Motor parameters
-    gear_ratio: 15    # Motor gear ratio
+    gear_ratio: 10    # Motor gear ratio
     poles: 10         # Motor pole count
 
-    # Robot geometry (IMPORTANT: Set these values for your robot!)
-    wheel_radius: 0.05        # Wheel radius in meters
-    wheel_separation: 0.3     # Distance between wheels in meters
+    # Robot geometry
+    wheel_radius: 0.0965     # Wheel radius in meters
+    wheel_separation: 0.37   # Distance between wheels in meters
 
     # Encoder parameters
-    encoder_resolution: 6535  # Pulses per revolution
+    # Motor driver reports ~65,676 counts per motor shaft revolution (empirically measured)
+    # This is the counts per motor shaft revolution (NOT output shaft)
+    # Output shaft PPR = encoder_resolution * gear_ratio
+    encoder_resolution: 65536  # Counts per motor shaft revolution
 
     # Control parameters
     max_rpm: 100              # Maximum RPM limit
-    control_rate: 50.0        # Control loop rate (Hz)
-    publish_rate: 50.0        # Odometry publish rate (Hz)
-    cmd_vel_timeout: 0.5      # Stop motors if no cmd_vel for this duration (seconds)
+    control_rate: 50.0        # Unified control+publish rate (Hz)
+    cmd_vel_timeout: 1.0      # Stop motors if no cmd_vel for this duration (seconds)
+    watchdog_timeout: 1.0     # Communication watchdog timeout (seconds)
 
     # Frame IDs
     odom_frame_id: "odom"
-    base_frame_id: "base_link"
+    base_frame_id: "base_footprint"
+
+    # Odometry source: true = encoder-based, false = command-based
+    use_encoder_odom: true
+
+    # TF publishing (disable when using robot_localization EKF)
+    publish_tf: false

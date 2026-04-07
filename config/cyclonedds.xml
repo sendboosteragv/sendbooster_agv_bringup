@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Cyclone DDS config for Jetson Orin Nano
+  localhost-only: prevents DDS traffic from flooding WiFi/hotspot.
+  For remote monitoring (PC rviz2), use ros2 topic echo over SSH or
+  launch with CYCLONEDDS_URI pointing to cyclonedds_network.xml
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain>
+    <General>
+      <AllowMulticast>spdp</AllowMulticast>
+    </General>
+  </Domain>
+</CycloneDDS>

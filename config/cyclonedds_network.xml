@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Cyclone DDS config — USB network mode (Jetson ↔ PC distributed sim)
+  Multicast on all interfaces. ROS_DOMAIN_ID isolates traffic.
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain>
+    <General>
+      <AllowMulticast>true</AllowMulticast>
+      <EnableMulticastLoopback>true</EnableMulticastLoopback>
+    </General>
+  </Domain>
+</CycloneDDS>
