@@ -52,13 +52,14 @@ ament_target_dependencies(motor_driver_node
   std_srvs
   geometry_msgs
   nav_msgs
+  sensor_msgs
   diagnostic_msgs
   tf2
   tf2_ros
   serial
 )
 
-# Laser scan merger executable
+# Laser scan merger executable (legacy, kept for reference)
 add_executable(laser_scan_merger
   src/laser_scan_merger.cpp
 )
@@ -68,11 +69,25 @@ ament_target_dependencies(laser_scan_merger
   message_filters
 )
 
+# Scan processor: combined filter + merger in one C++ node
+# Replaces 2x Python scan_angle_filter + laser_scan_merger + relay
+add_executable(scan_processor
+  src/scan_processor.cpp
+)
+ament_target_dependencies(scan_processor
+  rclcpp
+  sensor_msgs
+  tf2_ros
+  tf2
+  geometry_msgs
+)
+
 # Install targets
 install(TARGETS
   motor_driver
   motor_driver_node
   laser_scan_merger
+  scan_processor
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -91,6 +106,42 @@ install(DIRECTORY launch/
 # Install config files
 install(DIRECTORY config/
   DESTINATION share/${PROJECT_NAME}/config
+)
+
+# Install URDF files
+install(DIRECTORY urdf/
+  DESTINATION share/${PROJECT_NAME}/urdf
+)
+
+# Install Gazebo world files
+install(DIRECTORY worlds/
+  DESTINATION share/${PROJECT_NAME}/worlds
+)
+
+# Install Gazebo models
+install(DIRECTORY models/
+  DESTINATION share/${PROJECT_NAME}/models
+)
+
+# Install map files
+install(DIRECTORY map/
+  DESTINATION share/${PROJECT_NAME}/map
+)
+
+# Install Python scripts
+install(PROGRAMS
+  scripts/scan_angle_filter.py
+  scripts/odom_imu_fuser_real.py
+  scripts/odom_path_publisher.py
+  scripts/nav2_waypoint_test.py
+  scripts/nav_goal_metrics_collector.py
+  scripts/topic_delay_relay.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install RViz config files
+install(DIRECTORY rviz/
+  DESTINATION share/${PROJECT_NAME}/rviz
 )
 
 # Export dependencies

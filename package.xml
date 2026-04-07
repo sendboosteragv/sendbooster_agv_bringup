@@ -26,7 +26,10 @@
   <exec_depend>stella_ahrs</exec_depend>
   <exec_depend>robot_localization</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
-  <exec_depend>sendbooster_agv_simulation</exec_depend>
+  <exec_depend>foxglove_bridge</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>gazebo_ros_pkgs</exec_depend>
+  <exec_depend>gazebo_ros</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

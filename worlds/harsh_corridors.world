@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+<!--
+  Harsh corridor test world for Sendbooster AGV
+  Mimics real building conditions:
+  - Narrowest corridors: 0.85m (matching actual building minimum)
+  - L-shaped turns, T-junctions
+  - Dead ends requiring backup
+  - Mixed corridor widths: 0.85m, 1.2m, 2.0m
+
+  Layout (20m x 16m):
+
+     -10       -5        0        5        10
+  +8  |  W=2.0m  |  W=1.2m   |  W=0.85m  |
+      |          |           |            |
+  +4  +----  ----+----   ----+----   -----+
+      |                                    |
+   0  +--  ------+------  --+----  -------+
+      |          |           |            |
+  -4  +----  ----+----   ----+----   -----+
+      |  W=1.2m  |  W=2.0m   |  W=0.85m  |
+  -8  |          |           |            |
+-->
+<sdf version="1.6">
+  <world name="harsh_corridors">
+
+    <physics type="ode">
+      <real_time_update_rate>1000.0</real_time_update_rate>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+    </physics>
+
+    <include><uri>model://sun</uri></include>
+    <include><uri>model://ground_plane</uri></include>
+
+    <!-- ====== Outer Walls (20m x 16m) ====== -->
+    <model name="wall_n"><static>true</static><pose>0 8.0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>20.0 0.15 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>20.0 0.15 1.5</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient></material></visual></link></model>
+    <model name="wall_s"><static>true</static><pose>0 -8.0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>20.0 0.15 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>20.0 0.15 1.5</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient></material></visual></link></model>
+    <model name="wall_e"><static>true</static><pose>10.0 0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>0.15 16.0 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>0.15 16.0 1.5</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient></material></visual></link></model>
+    <model name="wall_w"><static>true</static><pose>-10.0 0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>0.15 16.0 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>0.15 16.0 1.5</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient></material></visual></link></model>
+
+    <!-- ====== Horizontal dividers creating corridors ====== -->
+
+    <!-- North divider at y=4 (gap at x=[-0.425, 0.425] = 0.85m, and x=[-6.0, -4.8] = 1.2m) -->
+    <model name="div_n_w"><static>true</static><pose>-7.5 4.0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>4.85 0.15 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>4.85 0.15 1.5</size></box></geometry><material><ambient>0.65 0.65 0.7 1</ambient></material></visual></link></model>
+    <model name="div_n_m1"><static>true</static><pose>-2.4 4.0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>3.6 0.15 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>3.6 0.15 1.5</size></box></geometry><material><ambient>0.65 0.65 0.7 1</ambient></material></visual></link></model>
+    <model name="div_n_m2"><static>true</static><pose>2.925 4.0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>4.0 0.15 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>4.0 0.15 1.5</size></box></geometry><material><ambient>0.65 0.65 0.7 1</ambient></material></visual></link></model>
+    <model name="div_n_e"><static>true</static><pose>7.5 4.0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>3.15 0.15 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>3.15 0.15 1.5</size></box></geometry><material><ambient>0.65 0.65 0.7 1</ambient></material></visual></link></model>
+
+    <!-- South divider at y=-4 (gap at x=[1.0, 2.2] = 1.2m, and x=[6.575, 7.425] = 0.85m) -->
+    <model name="div_s_w"><static>true</static><pose>-4.5 -4.0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>10.85 0.15 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>10.85 0.15 1.5</size></box></geometry><material><ambient>0.65 0.65 0.7 1</ambient></material></visual></link></model>
+    <model name="div_s_m"><static>true</static><pose>4.6 -4.0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>3.65 0.15 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>3.65 0.15 1.5</size></box></geometry><material><ambient>0.65 0.65 0.7 1</ambient></material></visual></link></model>
+    <model name="div_s_e"><static>true</static><pose>8.8 -4.0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>2.25 0.15 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>2.25 0.15 1.5</size></box></geometry><material><ambient>0.65 0.65 0.7 1</ambient></material></visual></link></model>
+
+    <!-- Center vertical wall creating L-turn at x=5 -->
+    <model name="vwall_center"><static>true</static><pose>5.0 0.0 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>0.15 5.0 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>0.15 5.0 1.5</size></box></geometry><material><ambient>0.65 0.65 0.7 1</ambient></material></visual></link></model>
+
+    <!-- Dead-end wall at x=-5, y=0 to y=3 -->
+    <model name="deadend"><static>true</static><pose>-5.0 1.5 0.75 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>0.15 3.0 1.5</size></box></geometry></collision><visual name="v"><geometry><box><size>0.15 3.0 1.5</size></box></geometry><material><ambient>0.65 0.65 0.7 1</ambient></material></visual></link></model>
+
+    <!-- ====== Obstacles (boxes simulating pallets/equipment) ====== -->
+    <model name="obs1"><static>true</static><pose>-3.0 6.0 0.4 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>0.6 0.6 0.8</size></box></geometry></collision><visual name="v"><geometry><box><size>0.6 0.6 0.8</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+    <model name="obs2"><static>true</static><pose>3.0 -6.0 0.4 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>0.8 0.5 0.8</size></box></geometry></collision><visual name="v"><geometry><box><size>0.8 0.5 0.8</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+    <model name="obs3"><static>true</static><pose>7.0 2.0 0.4 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>0.5 0.7 0.8</size></box></geometry></collision><visual name="v"><geometry><box><size>0.5 0.7 0.8</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+    <model name="obs4"><static>true</static><pose>-7.0 -2.0 0.4 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>0.6 0.6 0.8</size></box></geometry></collision><visual name="v"><geometry><box><size>0.6 0.6 0.8</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+    <model name="obs5"><static>true</static><pose>-2.0 -2.0 0.4 0 0 0</pose><link name="l"><collision name="c"><geometry><box><size>0.5 0.5 0.8</size></box></geometry></collision><visual name="v"><geometry><box><size>0.5 0.5 0.8</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+
+  </world>
+</sdf>

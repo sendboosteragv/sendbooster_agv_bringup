@@ -1,0 +1,419 @@
+<?xml version="1.0"?>
+<!--
+  Factory Maze World — Stress test for Jetson Orin Nano
+  300m x 200m industrial environment with:
+    - Complex maze corridors (1.5m ~ 2.0m wide)
+    - T-junctions, dead-ends, loops
+    - Narrow passages (barely wider than robot)
+    - Open areas with scattered obstacles
+    - Multiple rooms connected by corridors
+-->
+<sdf version="1.6">
+  <world name="factory_maze">
+
+    <physics type="ode">
+      <real_time_update_rate>1000.0</real_time_update_rate>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+    </physics>
+
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- Wall height: 2.5m, thickness: 0.2m -->
+    <!-- Robot: 0.6m x 0.6m, corridors: 1.5-2.0m wide -->
+
+    <!-- ================================================================ -->
+    <!-- OUTER WALLS (300m x 200m) -->
+    <!-- ================================================================ -->
+
+    <!-- North wall -->
+    <model name="outer_north">
+      <static>true</static>
+      <pose>0 100 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>300.2 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>300.2 0.2 2.5</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 1</ambient></material></visual>
+      </link>
+    </model>
+    <!-- South wall -->
+    <model name="outer_south">
+      <static>true</static>
+      <pose>0 -100 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>300.2 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>300.2 0.2 2.5</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 1</ambient></material></visual>
+      </link>
+    </model>
+    <!-- East wall -->
+    <model name="outer_east">
+      <static>true</static>
+      <pose>150 0 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.2 200.0 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 200.0 2.5</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 1</ambient></material></visual>
+      </link>
+    </model>
+    <!-- West wall -->
+    <model name="outer_west">
+      <static>true</static>
+      <pose>-150 0 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.2 200.0 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 200.0 2.5</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 1</ambient></material></visual>
+      </link>
+    </model>
+
+    <!-- ================================================================ -->
+    <!-- ZONE A: Northwest — Dense maze corridors (-150 to -50, 0 to 100) -->
+    <!-- ================================================================ -->
+
+    <!-- Horizontal corridors (2m wide between walls) -->
+    <model name="za_h1"><static>true</static>
+      <pose>-100 80 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>100 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>100 0.2 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="za_h2"><static>true</static>
+      <pose>-100 60 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>80 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>80 0.2 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="za_h3"><static>true</static>
+      <pose>-110 40 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>60 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>60 0.2 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="za_h4"><static>true</static>
+      <pose>-90 20 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>100 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>100 0.2 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+
+    <!-- Vertical walls creating maze in zone A -->
+    <model name="za_v1"><static>true</static>
+      <pose>-130 70 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 20 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 20 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="za_v2"><static>true</static>
+      <pose>-110 90 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 20 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 20 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="za_v3"><static>true</static>
+      <pose>-90 50 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 40 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 40 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="za_v4"><static>true</static>
+      <pose>-70 70 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 20 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 20 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="za_v5"><static>true</static>
+      <pose>-60 35 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 50 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 50 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+
+    <!-- Dead-end traps in zone A -->
+    <model name="za_dead1"><static>true</static>
+      <pose>-140 55 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>12 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>12 0.2 2.5</size></box></geometry><material><ambient>0.65 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="za_dead2"><static>true</static>
+      <pose>-146 68 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 26 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 26 2.5</size></box></geometry><material><ambient>0.65 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="za_dead3"><static>true</static>
+      <pose>-134 68 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 26 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 26 2.5</size></box></geometry><material><ambient>0.65 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+
+    <!-- ================================================================ -->
+    <!-- ZONE B: Northeast — Long corridors + rooms (50 to 150, 0 to 100) -->
+    <!-- ================================================================ -->
+
+    <!-- Long horizontal corridors -->
+    <model name="zb_h1"><static>true</static>
+      <pose>100 80 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>100 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>100 0.2 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="zb_h2"><static>true</static>
+      <pose>90 60 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>80 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>80 0.2 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="zb_h3"><static>true</static>
+      <pose>100 40 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>60 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>60 0.2 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="zb_h4"><static>true</static>
+      <pose>80 20 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>120 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>120 0.2 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+
+    <!-- Vertical walls for rooms -->
+    <model name="zb_v1"><static>true</static>
+      <pose>60 50 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 60 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 60 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="zb_v2"><static>true</static>
+      <pose>80 70 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 20 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 20 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="zb_v3"><static>true</static>
+      <pose>100 50 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 40 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 40 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="zb_v4"><static>true</static>
+      <pose>120 70 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 20 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 20 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+    <model name="zb_v5"><static>true</static>
+      <pose>140 50 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 60 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 60 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+
+    <!-- ================================================================ -->
+    <!-- ZONE C: Southwest — Narrow passages (-150 to -50, -100 to 0) -->
+    <!-- Corridors 1.2m wide (robot is 0.6m → only 0.3m clearance each side) -->
+    <!-- ================================================================ -->
+
+    <!-- Tight zigzag corridors -->
+    <model name="zc_h1"><static>true</static>
+      <pose>-100 -10 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>80 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>80 0.2 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+    <model name="zc_h2"><static>true</static>
+      <pose>-110 -25 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>60 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>60 0.2 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+    <model name="zc_h3"><static>true</static>
+      <pose>-90 -40 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>100 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>100 0.2 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+    <model name="zc_h4"><static>true</static>
+      <pose>-100 -55 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>80 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>80 0.2 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+    <model name="zc_h5"><static>true</static>
+      <pose>-110 -70 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>60 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>60 0.2 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+    <model name="zc_h6"><static>true</static>
+      <pose>-90 -85 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>100 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>100 0.2 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+
+    <!-- Vertical zigzag connectors -->
+    <model name="zc_v1"><static>true</static>
+      <pose>-140 -17 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 15 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 15 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+    <model name="zc_v2"><static>true</static>
+      <pose>-120 -32 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 15 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 15 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+    <model name="zc_v3"><static>true</static>
+      <pose>-100 -17 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 15 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 15 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+    <model name="zc_v4"><static>true</static>
+      <pose>-80 -47 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 15 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 15 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+    <model name="zc_v5"><static>true</static>
+      <pose>-60 -32 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 30 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 30 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+    <model name="zc_v6"><static>true</static>
+      <pose>-140 -62 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 15 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 15 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+    <model name="zc_v7"><static>true</static>
+      <pose>-60 -77 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 15 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 15 2.5</size></box></geometry><material><ambient>0.7 0.55 0.55 1</ambient></material></visual></link>
+    </model>
+
+    <!-- ================================================================ -->
+    <!-- ZONE D: Southeast — Open area with pillars (50 to 150, -100 to 0) -->
+    <!-- ================================================================ -->
+
+    <!-- Grid of pillars (forces path planning around many small obstacles) -->
+    <model name="zd_p01"><static>true</static><pose>60 -20 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p02"><static>true</static><pose>75 -20 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p03"><static>true</static><pose>90 -20 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p04"><static>true</static><pose>105 -20 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p05"><static>true</static><pose>120 -20 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p06"><static>true</static><pose>135 -20 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+
+    <model name="zd_p07"><static>true</static><pose>67 -40 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p08"><static>true</static><pose>82 -40 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p09"><static>true</static><pose>97 -40 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p10"><static>true</static><pose>112 -40 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p11"><static>true</static><pose>127 -40 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+
+    <model name="zd_p12"><static>true</static><pose>60 -60 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p13"><static>true</static><pose>75 -60 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p14"><static>true</static><pose>90 -60 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p15"><static>true</static><pose>105 -60 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p16"><static>true</static><pose>120 -60 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p17"><static>true</static><pose>135 -60 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+
+    <model name="zd_p18"><static>true</static><pose>67 -80 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p19"><static>true</static><pose>82 -80 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>1.0 3.0 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1.0 3.0 2.5</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+    <model name="zd_p20"><static>true</static><pose>97 -80 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>3.0 1.0 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>3.0 1.0 2.5</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+    <model name="zd_p21"><static>true</static><pose>112 -80 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.5</radius><length>2.5</length></cylinder></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual></link></model>
+    <model name="zd_p22"><static>true</static><pose>127 -80 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>2.0 2.0 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2.0 2.0 2.5</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+
+    <!-- Walls separating zone D from other areas -->
+    <model name="zd_wall_w"><static>true</static>
+      <pose>50 -50 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 80 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 80 2.5</size></box></geometry><material><ambient>0.6 0.6 0.6 1</ambient></material></visual></link>
+    </model>
+
+    <!-- ================================================================ -->
+    <!-- ZONE E: Center — Cross intersection + connecting corridors -->
+    <!-- Connects all four zones (-50 to 50, -50 to 50) -->
+    <!-- ================================================================ -->
+
+    <!-- Central cross structure -->
+    <model name="ze_h1"><static>true</static>
+      <pose>0 15 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>100 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>100 0.2 2.5</size></box></geometry><material><ambient>0.55 0.55 0.65 1</ambient></material></visual></link>
+    </model>
+    <model name="ze_h2"><static>true</static>
+      <pose>0 -15 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>100 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>100 0.2 2.5</size></box></geometry><material><ambient>0.55 0.55 0.65 1</ambient></material></visual></link>
+    </model>
+    <model name="ze_v1"><static>true</static>
+      <pose>-15 0 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 30 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 30 2.5</size></box></geometry><material><ambient>0.55 0.55 0.65 1</ambient></material></visual></link>
+    </model>
+    <model name="ze_v2"><static>true</static>
+      <pose>15 0 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 30 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 30 2.5</size></box></geometry><material><ambient>0.55 0.55 0.65 1</ambient></material></visual></link>
+    </model>
+
+    <!-- Inner walls creating rooms around center -->
+    <model name="ze_room1"><static>true</static>
+      <pose>-35 35 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>30 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>30 0.2 2.5</size></box></geometry><material><ambient>0.55 0.55 0.65 1</ambient></material></visual></link>
+    </model>
+    <model name="ze_room2"><static>true</static>
+      <pose>35 35 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>30 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>30 0.2 2.5</size></box></geometry><material><ambient>0.55 0.55 0.65 1</ambient></material></visual></link>
+    </model>
+    <model name="ze_room3"><static>true</static>
+      <pose>-35 -35 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>30 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>30 0.2 2.5</size></box></geometry><material><ambient>0.55 0.55 0.65 1</ambient></material></visual></link>
+    </model>
+    <model name="ze_room4"><static>true</static>
+      <pose>35 -35 1.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>30 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>30 0.2 2.5</size></box></geometry><material><ambient>0.55 0.55 0.65 1</ambient></material></visual></link>
+    </model>
+
+    <!-- Random obstacles in central area -->
+    <model name="ze_obs1"><static>true</static><pose>-30 5 0.5 0 0 0.4</pose>
+      <link name="l"><collision name="c"><geometry><box><size>1.5 0.8 1.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1.5 0.8 1.0</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+    <model name="ze_obs2"><static>true</static><pose>25 -5 0.5 0 0 -0.3</pose>
+      <link name="l"><collision name="c"><geometry><box><size>2.0 0.6 1.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2.0 0.6 1.0</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+    <model name="ze_obs3"><static>true</static><pose>-5 -30 0.5 0 0 0.8</pose>
+      <link name="l"><collision name="c"><geometry><box><size>1.0 1.0 1.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1.0 1.0 1.0</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+    <model name="ze_obs4"><static>true</static><pose>10 25 0.5 0 0 1.2</pose>
+      <link name="l"><collision name="c"><geometry><box><size>1.2 0.5 1.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1.2 0.5 1.0</size></box></geometry><material><ambient>0.6 0.4 0.2 1</ambient></material></visual></link></model>
+
+  </world>
+</sdf>
