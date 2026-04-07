@@ -66,7 +66,7 @@ bool MotorDriver::connect()
         serial_ = std::make_unique<serial::Serial>(
             port_,
             baudrate_,
-            serial::Timeout::simpleTimeout(100)  // 100ms timeout
+            serial::Timeout::simpleTimeout(20)  // 20ms timeout (matches 50Hz cycle)
         );
 
         if (serial_->isOpen()) {
@@ -228,18 +228,10 @@ bool MotorDriver::sendCommand(uint8_t cmd)
 
 bool MotorDriver::sendRpm(int rpm_left, int rpm_right, bool request_data)
 {
-    // Apply gear ratio (right motor is inverted for proper differential drive)
-    int16_t rpm_left_actual = static_cast<int16_t>(rpm_left * gear_ratio_);
-    int16_t rpm_right_actual = static_cast<int16_t>(-rpm_right * gear_ratio_);  // Inverted
-
-    // Debug output (only when non-zero)
-    static int16_t last_left = 0, last_right = 0;
-    if (rpm_left_actual != last_left || rpm_right_actual != last_right) {
-        std::cout << "[MotorDriver] sendRpm: input=(" << rpm_left << ", " << rpm_right
-                  << ") actual=(" << rpm_left_actual << ", " << rpm_right_actual << ")" << std::endl;
-        last_left = rpm_left_actual;
-        last_right = rpm_right_actual;
-    }
+    // Motor1=physical left, Motor2=physical right
+    // Motor2 needs negation (opposite mounting direction)
+    int16_t rpm_left_actual = static_cast<int16_t>(rpm_left * gear_ratio_);    // Motor1 = left
+    int16_t rpm_right_actual = static_cast<int16_t>(-rpm_right * gear_ratio_); // Motor2 = right (negated)
 
     IByte left_bytes = shortToBytes(rpm_left_actual);
     IByte right_bytes = shortToBytes(rpm_right_actual);
@@ -328,12 +320,19 @@ bool MotorDriver::readResponse()
         return false;
     }
 
-    // Read all available data
-    std::vector<uint8_t> buffer(available);
-    size_t bytes_read = 0;
+    // Read and append to accumulation buffer
+    size_t space = sizeof(accum_buf_) - accum_len_;
+    if (available > space) {
+        available = space;
+    }
+    if (available == 0) {
+        accum_len_ = 0;  // Buffer full, reset
+        return false;
+    }
 
+    size_t bytes_read = 0;
     try {
-        bytes_read = serial_->read(buffer.data(), available);
+        bytes_read = serial_->read(accum_buf_ + accum_len_, available);
         rx_count_++;
     } catch (const serial::SerialException& e) {
         setError(MotorError::SERIAL_READ_FAILED, e.what());
@@ -343,22 +342,89 @@ bool MotorDriver::readResponse()
         return false;
     }
 
-    if (bytes_read > 0) {
-        // Find packet start (look for header pattern)
-        bool packet_ok = false;
-        for (size_t i = 0; i < bytes_read; ++i) {
-            // Look for header start
-            if (buffer[i] == mdui_id_ && i + 1 < bytes_read && buffer[i + 1] == mdt_id_) {
-                // Found potential header, reset state and parse from here
-                resetState();
-                packet_ok = parsePacket(buffer.data() + i, bytes_read - i);
-                if (packet_ok) {
-                    break;  // Successfully parsed a packet
-                }
-            }
+    accum_len_ += bytes_read;
+
+    // Scan buffer for valid packets using checksum verification
+    size_t pos = 0;
+    while (pos + 6 <= accum_len_) {
+        // Find header: RMID(mdui_id_) + TMID(mdt_id_)
+        if (accum_buf_[pos] != mdui_id_ || accum_buf_[pos + 1] != mdt_id_) {
+            pos++;
+            continue;
         }
-        return packet_ok;
+
+        // Validate motor ID (1 or 2)
+        uint8_t id = accum_buf_[pos + 2];
+        if (id != 1 && id != 2) {
+            pos++;
+            continue;
+        }
+
+        // Check data size is reasonable
+        uint8_t data_num = accum_buf_[pos + 4];
+        if (data_num > MAX_DATA_SIZE) {
+            pos++;
+            continue;
+        }
+
+        size_t packet_len = 5 + data_num + 1;  // header(5) + data + checksum(1)
+
+        // Wait for full packet if not enough data yet
+        if (pos + packet_len > accum_len_) {
+            break;
+        }
+
+        // Verify checksum (sum of all bytes including CHK should be 0)
+        uint8_t sum = 0;
+        for (size_t i = 0; i < packet_len; ++i) {
+            sum += accum_buf_[pos + i];
+        }
+
+        if (sum == 0) {
+            // Valid packet — copy to recv_buf_ and process
+            size_t copy_len = std::min(packet_len, static_cast<size_t>(MAX_PACKET_SIZE));
+            std::memcpy(recv_buf_, accum_buf_ + pos, copy_len);
+            packet_num_ = packet_len;
+            max_data_num_ = data_num;
+            processPacket();
+            checksum_ok_count_++;
+
+            // Remove consumed data from buffer
+            size_t consumed = pos + packet_len;
+            if (consumed < accum_len_) {
+                std::memmove(accum_buf_, accum_buf_ + consumed, accum_len_ - consumed);
+                accum_len_ -= consumed;
+            } else {
+                accum_len_ = 0;
+            }
+            return true;
+        }
+
+        // Checksum failed — skip this header position
+        if (checksum_err_count_ < 5) {
+            std::cerr << "[MotorDriver] Checksum error pid=" << static_cast<int>(accum_buf_[pos + 3])
+                      << " dn=" << static_cast<int>(data_num)
+                      << " sum=0x" << std::hex << static_cast<int>(sum) << std::dec << std::endl;
+        }
+        checksum_err_count_++;
+        pos++;
     }
+
+    // Compact: remove scanned bytes that had no valid packet
+    if (pos > 0 && pos < accum_len_) {
+        std::memmove(accum_buf_, accum_buf_ + pos, accum_len_ - pos);
+        accum_len_ -= pos;
+    } else if (pos >= accum_len_) {
+        accum_len_ = 0;
+    }
+
+    // Prevent unbounded buffer growth with stale data
+    if (accum_len_ > 256) {
+        size_t keep = 128;
+        std::memmove(accum_buf_, accum_buf_ + accum_len_ - keep, keep);
+        accum_len_ = keep;
+    }
+
     return false;
 }
 
@@ -490,53 +556,50 @@ void MotorDriver::processPacket()
     uint8_t recv_motor_id = recv_buf_[2];
     uint64_t now = getCurrentTimeMs();
 
-    MotorState* motor = nullptr;
-    if (recv_motor_id == 1) {
-        motor = &motor_left_;
-    } else if (recv_motor_id == 2) {
-        motor = &motor_right_;
-    } else {
-        return;  // Invalid motor ID
-    }
+    if (pid == PID_MAIN_DATA && max_data_num_ >= 17) {
+        // PID_MAIN_DATA (193): single motor, 17 data bytes
+        // D0,D1: RPM  D2,D3: Current  D4: ControlType  D5,D6: RefSpeed
+        // D7,D8: Output  D9: Status  D10-D13: Position
+        // D14: BrakeOutput  D15: Temperature  D16: Status2
 
-    if (pid == PID_MAIN_DATA) {
-        // Parse PID_MAIN_DATA (193) response
-        // Offset 5: RPM (2 bytes)
-        // Offset 7: Current (2 bytes)
-        // Offset 9: Status (1 byte)
-        // Offset 10-13: Reserved
-        // Offset 14: Driver temp
-        // Offset 15-18: Position (4 bytes)
+        MotorState* motor = nullptr;
+        if (recv_motor_id == 1) {
+            motor = &motor_left_;
+        } else if (recv_motor_id == 2) {
+            motor = &motor_right_;
+        } else {
+            return;
+        }
 
-        motor->rpm = bytesToShort(recv_buf_[5], recv_buf_[6]);
-        motor->current = bytesToShort(recv_buf_[7], recv_buf_[8]);
-        parseMotorStatus(recv_buf_[9], *motor);
-        motor->driver_temp = recv_buf_[14];
-        motor->position = bytesToLong(recv_buf_[15], recv_buf_[16], recv_buf_[17], recv_buf_[18]);
+        motor->rpm = bytesToShort(recv_buf_[5], recv_buf_[6]);       // D0,D1
+        motor->current = bytesToShort(recv_buf_[7], recv_buf_[8]);   // D2,D3
+        parseMotorStatus(recv_buf_[14], *motor);                      // D9
+        motor->position = bytesToLong(recv_buf_[15], recv_buf_[16],
+                                       recv_buf_[17], recv_buf_[18]); // D10-D13
+        motor->driver_temp = recv_buf_[20];                           // D15
         motor->last_update_ms = now;
 
         initialized_ = true;
         last_error_ = MotorError::NONE;
 
-    } else if (pid == PID_PNT_MAIN_DATA) {
-        // Parse PID_PNT_MAIN_DATA (210) response - dual motor data
-        // This contains data for both motors in one packet
+    } else if (pid == PID_PNT_MAIN_DATA && max_data_num_ >= 18) {
+        // PID_PNT_MAIN_DATA (210): dual motor, 18 data bytes
+        // Motor1: D0,D1(RPM) D2,D3(Current) D4(Status) D5-D8(Position)
+        // Motor2: D9,D10(RPM) D11,D12(Current) D13(Status) D14-D17(Position)
 
-        // Motor 1 data
         motor_left_.rpm = bytesToShort(recv_buf_[5], recv_buf_[6]);
         motor_left_.current = bytesToShort(recv_buf_[7], recv_buf_[8]);
         parseMotorStatus(recv_buf_[9], motor_left_);
-        motor_left_.position = bytesToLong(recv_buf_[10], recv_buf_[11], recv_buf_[12], recv_buf_[13]);
+        motor_left_.position = bytesToLong(recv_buf_[10], recv_buf_[11],
+                                            recv_buf_[12], recv_buf_[13]);
         motor_left_.last_update_ms = now;
 
-        // Motor 2 data (if available in packet)
-        if (max_data_num_ >= 14) {
-            motor_right_.rpm = bytesToShort(recv_buf_[14], recv_buf_[15]);
-            motor_right_.current = bytesToShort(recv_buf_[16], recv_buf_[17]);
-            parseMotorStatus(recv_buf_[18], motor_right_);
-            motor_right_.position = bytesToLong(recv_buf_[19], recv_buf_[20], recv_buf_[21], recv_buf_[22]);
-            motor_right_.last_update_ms = now;
-        }
+        motor_right_.rpm = bytesToShort(recv_buf_[14], recv_buf_[15]);
+        motor_right_.current = bytesToShort(recv_buf_[16], recv_buf_[17]);
+        parseMotorStatus(recv_buf_[18], motor_right_);
+        motor_right_.position = bytesToLong(recv_buf_[19], recv_buf_[20],
+                                             recv_buf_[21], recv_buf_[22]);
+        motor_right_.last_update_ms = now;
 
         initialized_ = true;
         last_error_ = MotorError::NONE;

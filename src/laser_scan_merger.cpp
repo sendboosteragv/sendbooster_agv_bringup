@@ -97,7 +97,7 @@ private:
 
         // Merge back scan (angles from -90° to +90° in back LiDAR frame)
         // TF handles the 180° rotation, so we just apply the same offset
-        mergeScan(merged_scan, back_scan, M_PI);  // back scan, 180° offset to convert to robot frame
+        mergeScan(merged_scan, back_scan, 0.0);  // back scan, no offset (physical mount faces backward)
 
         // Publish merged scan
         merged_pub_->publish(merged_scan);

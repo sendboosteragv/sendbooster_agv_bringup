@@ -13,6 +13,8 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "sensor_msgs/msg/imu.hpp"
+#include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/float32.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "std_srvs/srv/set_bool.hpp"
@@ -41,6 +43,9 @@ public:
     , theta_(0.0)
     , last_left_position_(0)
     , last_right_position_(0)
+    , imu_yaw_(0.0)
+    , imu_yaw_offset_(0.0)
+    , imu_initialized_(false)
     , target_linear_(0.0)
     , target_angular_(0.0)
     , watchdog_triggered_(false)
@@ -73,6 +78,7 @@ public:
 
         // Create publishers
         odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
+        joint_state_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
         diagnostic_pub_ = this->create_publisher<diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", 10);
 
         // Motor status publishers
@@ -81,11 +87,20 @@ public:
         left_current_pub_ = this->create_publisher<std_msgs::msg::Float32>("/motor/left/current", 10);
         right_current_pub_ = this->create_publisher<std_msgs::msg::Float32>("/motor/right/current", 10);
 
-        // Create subscriber
+        // Create subscribers
         cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
             "/cmd_vel", 10,
             std::bind(&MotorDriverNode::cmdVelCallback, this, _1)
         );
+
+        // IMU subscriber (TurtleBot3 style: use IMU yaw directly for heading)
+        if (use_imu_) {
+            imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
+                "/imu/data", 10,
+                std::bind(&MotorDriverNode::imuCallback, this, _1)
+            );
+            RCLCPP_INFO(this->get_logger(), "IMU fusion enabled (direct yaw mode)");
+        }
 
         // Create services
         emergency_stop_srv_ = this->create_service<std_srvs::srv::Trigger>(
@@ -108,15 +123,10 @@ public:
             std::bind(&MotorDriverNode::setTorqueCallback, this, _1, _2)
         );
 
-        // Create timers
+        // Single unified timer: read → publish → send (no separate publish timer)
         control_timer_ = this->create_wall_timer(
             std::chrono::milliseconds(static_cast<int>(1000.0 / control_rate_)),
             std::bind(&MotorDriverNode::controlCallback, this)
-        );
-
-        publish_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(static_cast<int>(1000.0 / publish_rate_)),
-            std::bind(&MotorDriverNode::publishCallback, this)
         );
 
         diagnostic_timer_ = this->create_wall_timer(
@@ -152,8 +162,8 @@ private:
     void declareParameters()
     {
         // Serial communication
-        this->declare_parameter("serial_port", "/dev/ttyUSB0");
-        this->declare_parameter("baudrate", 57600);
+        this->declare_parameter("serial_port", "/dev/motor_driver");
+        this->declare_parameter("baudrate", 19200);
 
         // Motor driver IDs
         this->declare_parameter("mdui_id", 184);
@@ -161,29 +171,34 @@ private:
         this->declare_parameter("motor_id", 1);
 
         // Motor parameters
-        this->declare_parameter("gear_ratio", 15);
+        this->declare_parameter("gear_ratio", 10);
         this->declare_parameter("poles", 10);
 
         // Robot parameters
-        this->declare_parameter("wheel_radius", 0.05);
-        this->declare_parameter("wheel_separation", 0.3);
+        this->declare_parameter("wheel_radius", 0.0965);
+        this->declare_parameter("wheel_separation", 0.37);
 
         // Encoder parameters
         this->declare_parameter("encoder_resolution", 6535);
 
         // Control parameters
         this->declare_parameter("max_rpm", 100);
-        this->declare_parameter("control_rate", 50.0);
-        this->declare_parameter("publish_rate", 50.0);
-        this->declare_parameter("cmd_vel_timeout", 0.5);
+        this->declare_parameter("control_rate", 10.0);
+        this->declare_parameter("cmd_vel_timeout", 1.0);
         this->declare_parameter("watchdog_timeout", 1.0);
 
         // Frame IDs
         this->declare_parameter("odom_frame_id", "odom");
-        this->declare_parameter("base_frame_id", "base_link");
+        this->declare_parameter("base_frame_id", "base_footprint");
 
         // TF publishing (disable when using robot_localization EKF)
         this->declare_parameter("publish_tf", true);
+
+        // Odometry source: false = command-based, true = encoder-based
+        this->declare_parameter("use_encoder_odom", false);
+
+        // IMU fusion: use IMU yaw directly for heading (TurtleBot3 style)
+        this->declare_parameter("use_imu", false);
     }
 
     void getParameters()
@@ -211,7 +226,6 @@ private:
         // Control parameters
         max_rpm_ = this->get_parameter("max_rpm").as_int();
         control_rate_ = this->get_parameter("control_rate").as_double();
-        publish_rate_ = this->get_parameter("publish_rate").as_double();
         cmd_vel_timeout_ = this->get_parameter("cmd_vel_timeout").as_double();
         watchdog_timeout_ = this->get_parameter("watchdog_timeout").as_double();
 
@@ -222,6 +236,12 @@ private:
         // TF publishing
         publish_tf_ = this->get_parameter("publish_tf").as_bool();
 
+        // Odometry source
+        use_encoder_odom_ = this->get_parameter("use_encoder_odom").as_bool();
+
+        // IMU fusion
+        use_imu_ = this->get_parameter("use_imu").as_bool();
+
         // Log parameters
         RCLCPP_INFO(this->get_logger(), "Serial port: %s", serial_port_.c_str());
         RCLCPP_INFO(this->get_logger(), "Baudrate: %d", baudrate_);
@@ -229,6 +249,7 @@ private:
         RCLCPP_INFO(this->get_logger(), "Wheel separation: %.3f m", wheel_separation_);
         RCLCPP_INFO(this->get_logger(), "Gear ratio: %d", gear_ratio_);
         RCLCPP_INFO(this->get_logger(), "Max RPM: %d", max_rpm_);
+        RCLCPP_INFO(this->get_logger(), "Odometry source: %s", use_encoder_odom_ ? "encoder" : "command");
     }
 
     void connectDriver()
@@ -262,11 +283,33 @@ private:
         watchdog_triggered_ = false;
     }
 
+    void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
+    {
+        // Extract yaw from IMU quaternion
+        double siny_cosp = 2.0 * (msg->orientation.w * msg->orientation.z +
+                                   msg->orientation.x * msg->orientation.y);
+        double cosy_cosp = 1.0 - 2.0 * (msg->orientation.y * msg->orientation.y +
+                                          msg->orientation.z * msg->orientation.z);
+        double raw_yaw = std::atan2(siny_cosp, cosy_cosp);
+
+        // Store initial yaw offset (AHRS gives absolute yaw relative to magnetic north)
+        if (!imu_initialized_) {
+            imu_yaw_offset_ = raw_yaw;
+            imu_initialized_ = true;
+            RCLCPP_INFO(this->get_logger(), "IMU initialized: yaw offset = %.2f deg",
+                        imu_yaw_offset_ * 180.0 / M_PI);
+        }
+
+        // Subtract offset so odom starts at yaw=0
+        imu_yaw_ = raw_yaw - imu_yaw_offset_;
+        // Normalize to [-pi, pi]
+        imu_yaw_ = std::atan2(std::sin(imu_yaw_), std::cos(imu_yaw_));
+    }
+
     std::pair<int, int> twistToRpm(double linear, double angular)
     {
         // Differential drive kinematics
-        // Angular signs swapped to match physical motor layout
-        // (Motor1 = physical right, Motor2 = physical left)
+        // Motor1 = left, Motor2 = right
         double v_left = linear + (angular * wheel_separation_ / 2.0);
         double v_right = linear - (angular * wheel_separation_ / 2.0);
 
@@ -285,30 +328,33 @@ private:
         return {static_cast<int>(rpm_left), static_cast<int>(rpm_right)};
     }
 
+    // Single unified timer: read → publish → send
+    // Ensures odom is always computed from the freshest motor state
     void controlCallback()
     {
         if (!driver_->isConnected()) {
             return;
         }
 
-        // Check for cmd_vel timeout
         auto current_time = this->now();
-        double time_since_cmd = (current_time - last_cmd_time_).seconds();
 
-        if (time_since_cmd > cmd_vel_timeout_) {
-            target_linear_ = 0.0;
-            target_angular_ = 0.0;
-        }
-
-        // Convert to RPM and send
-        auto [rpm_left, rpm_right] = twistToRpm(target_linear_, target_angular_);
-        if (driver_->sendRpm(rpm_left, rpm_right)) {
+        // 1. Read response from previous cycle's command (freshest data)
+        if (driver_->readResponse()) {
             last_comm_time_ = current_time;
             comm_ok_ = true;
         }
 
-        // Read response
-        if (driver_->readResponse()) {
+        // 2. Publish odometry using fresh motor state
+        publishCallback();
+
+        // 3. Check cmd_vel timeout and send next command
+        double time_since_cmd = (current_time - last_cmd_time_).seconds();
+        if (time_since_cmd > cmd_vel_timeout_) {
+            target_linear_ = 0.0;
+            target_angular_ = 0.0;
+        }
+        auto [rpm_left, rpm_right] = twistToRpm(target_linear_, target_angular_);
+        if (driver_->sendRpm(rpm_left, rpm_right)) {
             last_comm_time_ = current_time;
             comm_ok_ = true;
         }
@@ -316,10 +362,13 @@ private:
 
     double encoderToMeters(int32_t encoder_ticks)
     {
-        // wheel_rotations = ticks / (encoder_resolution * gear_ratio)
-        double wheel_rotations = static_cast<double>(encoder_ticks) /
-                                 (static_cast<double>(encoder_resolution_) * static_cast<double>(gear_ratio_));
-        double distance = wheel_rotations * 2.0 * M_PI * wheel_radius_;
+        // encoder_resolution = counts per motor shaft revolution (measured ~65,536)
+        // output shaft revolutions = motor shaft revolutions / gear_ratio
+        //                          = (ticks / encoder_resolution) / gear_ratio
+        double motor_shaft_revs = static_cast<double>(encoder_ticks) /
+                                  static_cast<double>(encoder_resolution_);
+        double wheel_revolutions = motor_shaft_revs / static_cast<double>(gear_ratio_);
+        double distance = wheel_revolutions * 2.0 * M_PI * wheel_radius_;
         return distance;
     }
 
@@ -344,25 +393,51 @@ private:
         // Publish motor status
         publishMotorStatus(left_state, right_state);
 
-        // Calculate wheel displacements (in meters)
-        // Right motor is inverted in sendRpm(), so negate its encoder delta
-        double left_delta = encoderToMeters(left_state.position - last_left_position_);
-        double right_delta = -encoderToMeters(right_state.position - last_right_position_);
+        double delta_s, delta_theta, left_delta, right_delta;
 
-        last_left_position_ = left_state.position;
-        last_right_position_ = right_state.position;
+        if (use_encoder_odom_) {
+            // Encoder-based odometry using hall sensor position
+            if (!encoder_initialized_) {
+                last_left_position_ = left_state.position;
+                last_right_position_ = right_state.position;
+                encoder_initialized_ = true;
+                return;
+            }
 
-        // Calculate odometry using differential drive model
-        double delta_s = (left_delta + right_delta) / 2.0;
-        double delta_theta = (left_delta - right_delta) / wheel_separation_;
+            int32_t left_delta_ticks = left_state.position - last_left_position_;
+            int32_t right_delta_ticks = right_state.position - last_right_position_;
+            last_left_position_ = left_state.position;
+            last_right_position_ = right_state.position;
+
+            // Motor1=left, Motor2=right (Motor2 position is negated)
+            left_delta = encoderToMeters(left_delta_ticks);     // Motor1 = left
+            right_delta = -encoderToMeters(right_delta_ticks);  // Motor2 = right (negated)
+
+            delta_s = (left_delta + right_delta) / 2.0;
+            delta_theta = (left_delta - right_delta) / wheel_separation_;
+        } else {
+            // Command-based odometry
+            delta_s = target_linear_ * dt;
+            delta_theta = target_angular_ * dt;
+            left_delta = (target_linear_ - target_angular_ * wheel_separation_ / 2.0) * dt;
+            right_delta = (target_linear_ + target_angular_ * wheel_separation_ / 2.0) * dt;
+        }
 
         // Update pose
-        x_ += delta_s * std::cos(theta_ + delta_theta / 2.0);
-        y_ += delta_s * std::sin(theta_ + delta_theta / 2.0);
-        theta_ += delta_theta;
-
-        // Normalize theta to [-pi, pi]
-        theta_ = std::atan2(std::sin(theta_), std::cos(theta_));
+        if (use_imu_ && imu_initialized_) {
+            // TurtleBot3 style: use IMU yaw directly for heading
+            // Position still computed from wheel encoders
+            x_ += delta_s * std::cos(imu_yaw_ + delta_theta / 2.0);
+            y_ += delta_s * std::sin(imu_yaw_ + delta_theta / 2.0);
+            theta_ = imu_yaw_;
+        } else {
+            // Pure wheel odometry (original)
+            x_ += delta_s * std::cos(theta_ + delta_theta / 2.0);
+            y_ += delta_s * std::sin(theta_ + delta_theta / 2.0);
+            theta_ += delta_theta;
+            // Normalize theta to [-pi, pi]
+            theta_ = std::atan2(std::sin(theta_), std::cos(theta_));
+        }
 
         // Calculate velocities
         double linear_vel = (dt > 0) ? delta_s / dt : 0.0;
@@ -370,6 +445,11 @@ private:
 
         // Publish odometry
         publishOdometry(current_time, linear_vel, angular_vel);
+
+        // Publish joint states for wheel TF
+        left_wheel_pos_ += left_delta / wheel_radius_;
+        right_wheel_pos_ += right_delta / wheel_radius_;
+        publishJointStates(current_time);
 
         // Publish TF (disabled when EKF handles it)
         if (publish_tf_) {
@@ -419,13 +499,22 @@ private:
         odom.twist.twist.linear.y = 0.0;
         odom.twist.twist.angular.z = angular_vel;
 
-        // Covariance (simple diagonal)
-        odom.pose.covariance[0] = 0.01;   // x
-        odom.pose.covariance[7] = 0.01;   // y
-        odom.pose.covariance[35] = 0.01;  // yaw
+        // Covariance — 값이 클수록 EKF가 덜 신뢰
+        // Pose covariance (EKF에서 pose는 안 쓰지만 시각화/다른 노드 참조용)
+        odom.pose.covariance[0] = 0.1;    // x
+        odom.pose.covariance[7] = 0.1;    // y
+        odom.pose.covariance[14] = 1e6;   // z (사용 안 함, 큰 값)
+        odom.pose.covariance[21] = 1e6;   // roll
+        odom.pose.covariance[28] = 1e6;   // pitch
+        odom.pose.covariance[35] = 0.2;   // yaw
 
-        odom.twist.covariance[0] = 0.01;   // vx
-        odom.twist.covariance[35] = 0.01;  // vyaw
+        // Twist covariance (EKF가 실제 사용하는 값)
+        odom.twist.covariance[0] = 0.05;   // vx
+        odom.twist.covariance[7] = 1e6;    // vy (diff-drive: 횡방향 이동 없음)
+        odom.twist.covariance[14] = 1e6;   // vz
+        odom.twist.covariance[21] = 1e6;   // vroll
+        odom.twist.covariance[28] = 1e6;   // vpitch
+        odom.twist.covariance[35] = 0.1;   // vyaw
 
         odom_pub_->publish(odom);
     }
@@ -449,6 +538,17 @@ private:
         t.transform.rotation.w = q.w();
 
         tf_broadcaster_->sendTransform(t);
+    }
+
+    void publishJointStates(const rclcpp::Time& stamp)
+    {
+        auto js = sensor_msgs::msg::JointState();
+        js.header.stamp = stamp;
+        js.name = {"wheel_left_joint", "wheel_right_joint"};
+        js.position = {left_wheel_pos_, right_wheel_pos_};
+        js.velocity = {};
+        js.effort = {};
+        joint_state_pub_->publish(js);
     }
 
     void diagnosticCallback()
@@ -659,6 +759,7 @@ private:
 
     // Publishers
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
     rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostic_pub_;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr left_rpm_pub_;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr right_rpm_pub_;
@@ -667,6 +768,7 @@ private:
 
     // Subscribers
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
 
     // Services
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr emergency_stop_srv_;
@@ -676,7 +778,6 @@ private:
 
     // Timers
     rclcpp::TimerBase::SharedPtr control_timer_;
-    rclcpp::TimerBase::SharedPtr publish_timer_;
     rclcpp::TimerBase::SharedPtr diagnostic_timer_;
     rclcpp::TimerBase::SharedPtr watchdog_timer_;
 
@@ -701,7 +802,6 @@ private:
     // Parameters - Control
     int max_rpm_;
     double control_rate_;
-    double publish_rate_;
     double cmd_vel_timeout_;
     double watchdog_timeout_;
 
@@ -709,14 +809,24 @@ private:
     std::string odom_frame_id_;
     std::string base_frame_id_;
     bool publish_tf_;
+    bool use_encoder_odom_;
+    bool use_imu_;
 
     // Odometry state
     double x_;
     double y_;
     double theta_;
+    double left_wheel_pos_{0.0};
+    double right_wheel_pos_{0.0};
     int32_t last_left_position_;
     int32_t last_right_position_;
+    bool encoder_initialized_{false};
     rclcpp::Time last_time_;
+
+    // IMU state
+    double imu_yaw_;
+    double imu_yaw_offset_;
+    bool imu_initialized_;
 
     // Control state
     double target_linear_;
